@@ -12,8 +12,13 @@ from h.models.group import GroupFactory
 from h.models.group_scope import GroupScope
 from h import paginator
 from h.schemas.admin_group import CreateAdminGroupSchema, user_exists_validator_factory
+from h.interfaces import IGroupService
 
 _ = i18n.TranslationString
+
+
+class GroupNotFoundError(Exception):
+    pass
 
 
 @view_config(route_name='admin_groups',
@@ -23,6 +28,38 @@ _ = i18n.TranslationString
 @paginator.paginate_query
 def groups_index(context, request):
     return request.db.query(models.Group).order_by(models.Group.created.desc())
+
+
+@view_defaults(route_name='admin_groups_delete',
+               permission='admin_groups')
+class GroupDeleteController(object):
+
+    def __init__(self, request):
+        self.request = request
+
+    @view_config(request_method='POST')
+    def delete(self):
+        group = _form_request_group(self.request)
+        svc = self.request.find_service(name='delete_group')
+
+        svc.delete(group)
+        self.request.session.flash(
+            'Successfully deleted group %s' % (group.name), 'success')
+
+        return HTTPFound(
+            location=self.request.route_path('admin_groups'))
+
+
+def _form_request_group(request):
+    """Return the Group which a user admin form action relates to."""
+    pubid = request.params['pubid'].strip()
+    group_service = request.find_service(IGroupService)
+    group = group_service.find(pubid)
+
+    if group is None:
+        raise GroupNotFoundError('Could not find group with pubid %s' % (pubid))
+
+    return group
 
 
 @view_defaults(route_name='admin_groups_create',

@@ -16,6 +16,7 @@
           <th>URL</th>
           <th>Created by</th>
           <th>Members</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -44,6 +45,15 @@
               {% endif %}
             </td>
             <td>{{ group.members|length }}</td>
+            <td>
+              <form method="POST"
+                    action="{{request.route_path('admin_groups_delete')}}"
+                    class="form-inline js-groups-delete-form">
+                <input type="hidden" name="pubid" value="{{group.pubid}}">
+                <button class="btn btn-danger js-confirm-submit" type="submit"
+                  data-confirm-message="Are you sure you want to delete the group &quot;{{ group.name }}&quot;?">Delete</button>
+              </form>
+            </td>
           </tr>
         {% endfor %}
       </tbody>

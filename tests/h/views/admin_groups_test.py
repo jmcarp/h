@@ -10,9 +10,11 @@ import mock
 
 from h.models import User
 from h.views import admin_groups
-from h.views.admin_groups import GroupCreateController, GroupEditController
+from h.views.admin_groups import GroupCreateController, GroupEditController, GroupDeleteController
 from h.services.user import UserService
 from h.services.group import GroupService
+from h.services.groupfinder import GroupfinderService
+from h.services.delete_group import DeleteGroupService
 
 
 class FakeForm(object):
@@ -45,6 +47,29 @@ def test_index_paginates_results(pyramid_request, routes, paginate):
     admin_groups.groups_index(None, pyramid_request)
 
     paginate.assert_called_once_with(pyramid_request, mock.ANY, mock.ANY)
+
+
+@pytest.mark.usefixtures('group_finder_svc', 'routes')
+class TestGroupDeleteController(object):
+    def test_delete_group_not_found_error(self, group_finder_svc, pyramid_request):
+        group_finder_svc.find.return_value = None
+
+        pyramid_request.params = {"pubid": "xyz"}
+        ctrl = GroupDeleteController(pyramid_request)
+
+        with pytest.raises(admin_groups.GroupNotFoundError):
+            ctrl.delete()
+
+    def test_delete_deletes_user(self, group_finder_svc, delete_group_svc, pyramid_request, routes):
+        pyramid_request.params = {"pubid": "xyz"}
+        group = mock.MagicMock()
+        group_finder_svc.find.return_value = group
+
+        ctrl = GroupDeleteController(pyramid_request)
+
+        ctrl.delete()
+
+        delete_group_svc.delete.assert_called_once_with(group)
 
 
 @pytest.mark.usefixtures('group_svc', 'routes', 'user_svc')
@@ -262,3 +287,17 @@ def group_svc(pyramid_config):
     svc = mock.create_autospec(GroupService, spec_set=True, instance=True)
     pyramid_config.register_service(svc, name='group')
     return svc
+
+
+@pytest.fixture
+def group_finder_svc(pyramid_config):
+    svc = mock.create_autospec(GroupfinderService, spec_set=True, instance=True)
+    pyramid_config.register_service(svc, iface='h.interfaces.IGroupService')
+    return svc
+
+
+@pytest.fixture
+def delete_group_svc(pyramid_config, pyramid_request):
+    service = mock.Mock(spec_set=DeleteGroupService(request=pyramid_request))
+    pyramid_config.register_service(service, name='delete_group')
+    return service
